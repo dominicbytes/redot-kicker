@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "protocol": "RKCH/1",
+  "helpers": {
+    "windows-x86_64": {
+      "path": "windows/x86_64/redot-kicker-credential-helper.exe",
+      "status": "built_and_windows_credential_manager_tested",
+      "sha256": "ebea518cb06fdfa7345d27085cc1d5e73f88482cc1b90d6490244651e10fa62a"
+    },
+    "linux-x86_64": {
+      "path": "linux/x86_64/redot-kicker-credential-helper",
+      "status": "built_and_protocol_tested_secret_service_desktop_certification_pending",
+      "sha256": "a3ec7e3a50198df9abe8eb0ceffbd66aa2ddc1e19ebe877c28cd9cb356bb5a9e"
+    }
+  }
+}

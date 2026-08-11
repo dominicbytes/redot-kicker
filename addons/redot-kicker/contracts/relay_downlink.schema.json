@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://redot-kicker.local/contracts/relay-downlink-v1.schema.json",
+  "title": "Redot Kicker authenticated relay event envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["platform", "schema_version", "tenant_id", "application_id", "session_id", "subscription_id", "source_message_id", "event_type", "event_version", "occurred_at", "received_at", "channel_id", "supported", "payload"],
+  "properties": {
+    "platform": {"const": "kick"},
+    "schema_version": {"const": 1},
+    "tenant_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "application_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "session_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "subscription_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "source_message_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "event_type": {"type": "string", "minLength": 1, "maxLength": 128},
+    "event_version": {"type": "integer", "minimum": 1},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "received_at": {"type": "string", "format": "date-time"},
+    "channel_id": {"type": "string", "minLength": 1, "maxLength": 64},
+    "supported": {"type": "boolean"},
+    "payload": {"type": "object"}
+  }
+}

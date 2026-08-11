@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "platform": "kick",
+  "source": {
+    "documentation_repository": "https://github.com/KickEngineering/KickDevDocs",
+    "documentation_commit": "7f7afe7ace9424f722c8e6b06e32421099c8e7f6",
+    "documentation_date": "2026-08-11",
+    "openapi_url": "https://api.kick.com/swagger/doc.yaml",
+    "openapi_sha256": "578270b3d181d08f2eefa60afd7310685a729c975c78cab5f6e61f6a1c6abf4f"
+  },
+  "oauth": {
+    "authorization_endpoint": "https://id.kick.com/oauth/authorize",
+    "token_endpoint": "https://id.kick.com/oauth/token",
+    "revoke_endpoint": "https://id.kick.com/oauth/revoke",
+    "flow": "authorization_code_pkce_via_confidential_broker",
+    "desktop_receives_kick_tokens": false
+  },
+  "scopes": [
+    "user:read",
+    "channel:read",
+    "channel:write",
+    "channel:rewards:read",
+    "channel:rewards:write",
+    "chat:write",
+    "streamkey:read",
+    "events:subscribe",
+    "moderation:ban",
+    "moderation:chat_message:manage",
+    "kicks:read"
+  ],
+  "endpoints": [
+    {"id":"categories.search.v2","method":"GET","path":"/public/v2/categories","scopes":[],"token_kinds":["user","app"],"state":"supported"},
+    {"id":"categories.search.v1","method":"GET","path":"/public/v1/categories","scopes":[],"token_kinds":["user","app"],"state":"deprecated"},
+    {"id":"categories.get.v1","method":"GET","path":"/public/v1/categories/{category_id}","scopes":[],"token_kinds":["user","app"],"state":"deprecated"},
+    {"id":"channels.get","method":"GET","path":"/public/v1/channels","scopes":["channel:read"],"token_kinds":["user","app"],"state":"supported"},
+    {"id":"channels.update","method":"PATCH","path":"/public/v1/channels","scopes":["channel:write"],"token_kinds":["user"],"state":"supported"},
+    {"id":"rewards.list","method":"GET","path":"/public/v1/channels/rewards","scopes":["channel:rewards:read","channel:rewards:write"],"scope_mode":"any","token_kinds":["user"],"state":"supported"},
+    {"id":"rewards.create","method":"POST","path":"/public/v1/channels/rewards","scopes":["channel:rewards:write"],"token_kinds":["user"],"state":"supported"},
+    {"id":"rewards.update","method":"PATCH","path":"/public/v1/channels/rewards/{id}","scopes":["channel:rewards:write"],"token_kinds":["user"],"state":"supported"},
+    {"id":"rewards.delete","method":"DELETE","path":"/public/v1/channels/rewards/{id}","scopes":["channel:rewards:write"],"token_kinds":["user"],"state":"supported"},
+    {"id":"redemptions.list","method":"GET","path":"/public/v1/channels/rewards/redemptions","scopes":["channel:rewards:read","channel:rewards:write"],"scope_mode":"any","token_kinds":["user"],"state":"supported"},
+    {"id":"redemptions.accept","method":"POST","path":"/public/v1/channels/rewards/redemptions/accept","scopes":["channel:rewards:write"],"token_kinds":["user"],"state":"supported"},
+    {"id":"redemptions.reject","method":"POST","path":"/public/v1/channels/rewards/redemptions/reject","scopes":["channel:rewards:write"],"token_kinds":["user"],"state":"supported"},
+    {"id":"chat.send","method":"POST","path":"/public/v1/chat","scopes":["chat:write"],"token_kinds":["user"],"state":"supported"},
+    {"id":"chat.delete","method":"DELETE","path":"/public/v1/chat/{message_id}","scopes":["moderation:chat_message:manage"],"token_kinds":["user"],"state":"supported"},
+    {"id":"subscriptions.list","method":"GET","path":"/public/v1/events/subscriptions","scopes":[],"token_kinds":["user","app"],"state":"supported"},
+    {"id":"subscriptions.create","method":"POST","path":"/public/v1/events/subscriptions","scopes":["events:subscribe"],"token_kinds":["user","app"],"state":"supported"},
+    {"id":"subscriptions.delete","method":"DELETE","path":"/public/v1/events/subscriptions","scopes":["events:subscribe"],"token_kinds":["user","app"],"state":"supported"},
+    {"id":"kicks.leaderboard","method":"GET","path":"/public/v1/kicks/leaderboard","scopes":["kicks:read"],"token_kinds":["user"],"state":"supported"},
+    {"id":"livestreams.list.v2","method":"GET","path":"/public/v2/livestreams","scopes":[],"token_kinds":["user","app"],"state":"supported"},
+    {"id":"livestreams.list.v1","method":"GET","path":"/public/v1/livestreams","scopes":[],"token_kinds":["user","app"],"state":"deprecated"},
+    {"id":"livestreams.by_users","method":"GET","path":"/public/v1/users/livestreams","scopes":[],"token_kinds":["user","app"],"state":"supported"},
+    {"id":"livestreams.stats","method":"GET","path":"/public/v1/livestreams/stats","scopes":[],"token_kinds":["user","app"],"state":"supported"},
+    {"id":"moderation.ban","method":"POST","path":"/public/v1/moderation/bans","scopes":["moderation:ban"],"token_kinds":["user"],"state":"supported"},
+    {"id":"moderation.unban","method":"DELETE","path":"/public/v1/moderation/bans","scopes":["moderation:ban"],"token_kinds":["user"],"state":"supported"},
+    {"id":"public_key.get","method":"GET","path":"/public/v1/public-key","scopes":[],"token_kinds":["none"],"state":"supported"},
+    {"id":"token.introspect","method":"POST","path":"/oauth/token/introspect","scopes":[],"token_kinds":["user","app"],"state":"supported"},
+    {"id":"users.get","method":"GET","path":"/public/v1/users","scopes":["user:read"],"token_kinds":["user","app"],"state":"supported"},
+    {"id":"stream_key.get","method":"GET","path":"","scopes":["streamkey:read"],"token_kinds":["user"],"state":"scope_declared_route_unavailable"}
+  ],
+  "events": [
+    {"type":"chat.message.sent","version":1,"scope":"events:subscribe"},
+    {"type":"channel.followed","version":1,"scope":"events:subscribe"},
+    {"type":"channel.subscription.renewal","version":1,"scope":"events:subscribe"},
+    {"type":"channel.subscription.gifts","version":1,"scope":"events:subscribe"},
+    {"type":"channel.subscription.new","version":1,"scope":"events:subscribe"},
+    {"type":"channel.reward.redemption.updated","version":1,"scope":"events:subscribe"},
+    {"type":"livestream.status.updated","version":1,"scope":"events:subscribe"},
+    {"type":"livestream.metadata.updated","version":1,"scope":"events:subscribe"},
+    {"type":"moderation.banned","version":1,"scope":"events:subscribe"},
+    {"type":"kicks.gifted","version":1,"scope":"events:subscribe"}
+  ],
+  "data_lifecycle": [
+    {"id":"kick_client_secret","storage":"relay_vault_only","desktop_plaintext":false},
+    {"id":"kick_access_token","storage":"relay_vault_only","desktop_plaintext":false},
+    {"id":"kick_refresh_token","storage":"relay_vault_only","desktop_plaintext":false},
+    {"id":"broker_session_credential","storage":"desktop_os_vault_only","desktop_plaintext":false},
+    {"id":"session_descriptor","storage":"desktop_user_non_secret","desktop_plaintext":true},
+    {"id":"webhook_raw_body","storage":"relay_memory_until_dispatch","desktop_plaintext":false},
+    {"id":"replay_identity","storage":"relay_bounded_ttl","desktop_plaintext":false}
+  ]
+}

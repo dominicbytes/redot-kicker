@@ -1,0 +1,27 @@
+{
+  "name": "redot-kicker-relay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted single-tenant OAuth, API, webhook, and WebSocket relay for Redot Kicker",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/src/index.js",
+    "test": "npm run build && node --test --test-concurrency=1 dist/tests/*.test.js"
+  },
+  "dependencies": {
+    "json-bigint": "1.0.0",
+    "ws": "8.21.3"
+  },
+  "devDependencies": {
+    "@types/json-bigint": "1.0.4",
+    "@types/node": "24.13.3",
+    "@types/ws": "8.18.1",
+    "typescript": "7.0.2"
+  },
+  "license": "MIT"
+}

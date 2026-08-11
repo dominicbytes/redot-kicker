@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "topology": "self_hosted_single_tenant",
+  "transport": "https_and_authenticated_wss",
+  "desktop_secret": "opaque_broker_session_only",
+  "relay_secrets": ["kick_client_secret", "kick_access_token", "kick_refresh_token"],
+  "endpoints": [
+    {"id":"auth.begin","method":"POST","path":"/v1/auth/requests","auth":"client_nonce_proof","response":"authorization_request"},
+    {"id":"auth.status","method":"GET","path":"/v1/auth/requests/{request_id}","auth":"client_nonce_proof","response":"pending_or_single_use_broker_session"},
+    {"id":"session.restore","method":"POST","path":"/v1/sessions/restore","auth":"broker_session","response":"session_descriptor"},
+    {"id":"session.rotate","method":"POST","path":"/v1/sessions/rotate","auth":"broker_session","response":"rotated_broker_session"},
+    {"id":"session.revoke","method":"POST","path":"/v1/sessions/revoke","auth":"broker_session","response":"revocation_result"},
+    {"id":"api.invoke","method":"POST","path":"/v1/kick/actions/{operation_id}","auth":"broker_session","response":"typed_kick_response"},
+    {"id":"events.ticket","method":"POST","path":"/v1/events/tickets","auth":"broker_session","response":"single_use_short_lived_downlink_ticket"},
+    {"id":"events.socket","method":"GET","path":"/v1/events/socket","auth":"single_use_downlink_ticket","response":"relay_downlink_v1"},
+    {"id":"health","method":"GET","path":"/v1/health","auth":"none","response":"redacted_health"}
+  ],
+  "invariants": [
+    "The broker never returns a Kick token or client secret to the desktop client.",
+    "Authorization request state and PKCE verifier are generated, validated, and destroyed by the broker.",
+    "A broker session is bound to application, Kick user, channel, and desktop session slot.",
+    "The broker-session credential never appears in a URL or WebSocket subprotocol; WSS uses a single-use short-lived ticket.",
+    "Action operation IDs are allowlisted by the frozen Kick contract; arbitrary upstream URLs are rejected.",
+    "Kick OAuth fields, channel stream keys, and RTMP URLs are stripped before any response leaves the relay.",
+    "Raw webhook bodies are verified before JSON parsing and are not persisted after dispatch.",
+    "Disconnect and clear-data invalidate local state; revoke also deletes relay token state when reachable."
+  ]
+}

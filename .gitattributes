@@ -1,0 +1,5 @@
+* text=auto eol=lf
+
+*.exe binary
+*.xlsx binary
+addons/redot-kicker/bin/linux/x86_64/redot-kicker-credential-helper binary

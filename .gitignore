@@ -1,0 +1,6 @@
+.godot/
+.test-output/
+build/
+native/credential-helper/build/
+*.log
+*.tmp

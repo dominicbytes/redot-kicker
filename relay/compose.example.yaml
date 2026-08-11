@@ -1,0 +1,39 @@
+services:
+  redot-kicker-relay:
+    build:
+      context: .
+    platform: linux/amd64
+    restart: unless-stopped
+    read_only: true
+    init: true
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      REDOT_KICKER_PUBLIC_BASE_URL: "https://kick-relay.example.com"
+      REDOT_KICKER_TENANT_ID: "your-studio"
+      REDOT_KICKER_PUBLISHER_ID: "your-publisher"
+      REDOT_KICKER_APPLICATION_ID: "your-game"
+      REDOT_KICKER_KICK_CLIENT_ID: "your-kick-client-id"
+      REDOT_KICKER_CLIENT_SECRET_FILE: "/run/secrets/kick_client_secret"
+      REDOT_KICKER_MASTER_KEY_FILE: "/run/secrets/master_key"
+      REDOT_KICKER_STATE_FILE: "/var/lib/redot-kicker/state.enc"
+    secrets:
+      - kick_client_secret
+      - master_key
+    volumes:
+      - redot-kicker-state:/var/lib/redot-kicker
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+secrets:
+  kick_client_secret:
+    file: ./.secrets/kick_client_secret
+  master_key:
+    file: ./.secrets/master_key
+
+volumes:
+  redot-kicker-state:
