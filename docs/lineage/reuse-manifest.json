@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "donor": {
+    "project": "redot-tuber",
+    "commit": "029c22d7d5a5a68abacd8d12aabfea0b8e6536d8",
+    "license": "MIT"
+  },
+  "adaptations": [
+    {
+      "source": "addons/redot-tuber/diagnostics/youtube_redactor.gd",
+      "target": "addons/redot-kicker/diagnostics/kick_redactor.gd",
+      "disposition": "adapted generic bounded redaction; added broker/webhook secrets and payload omission"
+    },
+    {
+      "source": "addons/redot-tuber/models/youtube_event_deduplicator.gd",
+      "target": "addons/redot-kicker/transport/kick_event_deduplicator.gd",
+      "disposition": "adapted bounded insertion-order storage; replaced YouTube update fingerprints with Kick message-ID TTL replay semantics"
+    },
+    {
+      "source": "addons/redot-tuber/transport/cancellation_token.gd",
+      "target": "addons/redot-kicker/transport/cancellation_token.gd",
+      "disposition": "adapted generic cooperative cancellation primitive"
+    },
+    {
+      "source": "addons/redot-tuber/transport/youtube_http_transport.gd",
+      "target": "addons/redot-kicker/transport/kick_http_transport.gd",
+      "disposition": "adapted bounded HTTP concurrency, cancellation, body limits, and retry mechanics; writes default to non-retryable broker calls"
+    },
+    {
+      "source": "addons/redot-tuber/transport/youtube_http_response.gd",
+      "target": "addons/redot-kicker/models/kick_http_response.gd",
+      "disposition": "adapted generic typed response and header metadata container"
+    },
+    {
+      "source": "addons/redot-tuber/transport/youtube_http_ticket.gd",
+      "target": "addons/redot-kicker/models/kick_http_ticket.gd",
+      "disposition": "adapted generic awaitable request ticket"
+    },
+    {
+      "source": "addons/redot-tuber/models/youtube_api_error.gd",
+      "target": "addons/redot-kicker/models/kick_api_error.gd",
+      "disposition": "adapted typed transport/HTTP error categorization for broker semantics"
+    },
+    {
+      "source": "addons/redot-tuber/auth/youtube_session_descriptor_store.gd",
+      "target": "addons/redot-kicker/auth/kick_session_descriptor_store.gd",
+      "disposition": "adapted non-secret versioned user descriptor storage; descriptor now binds relay tenant/application/session/channel/subscriptions"
+    },
+    {
+      "source": "addons/redot-tuber/auth/youtube_session_slot_registry.gd",
+      "target": "addons/redot-kicker/auth/kick_session_slot_registry.gd",
+      "disposition": "adapted weak-owner per-client session-slot isolation"
+    },
+    {
+      "source": "addons/redot-tuber/auth/youtube_credential_protocol.gd",
+      "target": "addons/redot-kicker/auth/kick_credential_protocol.gd",
+      "disposition": "adapted four-line base64 protocol with distinct RKCH/1 identity and opaque broker-session meaning"
+    },
+    {
+      "source": "addons/redot-tuber/auth/youtube_credential_helper_client.gd",
+      "target": "addons/redot-kicker/auth/kick_credential_helper_client.gd",
+      "disposition": "adapted bounded standalone helper process client and Kicker-specific binary paths"
+    },
+    {
+      "source": "addons/redot-tuber/media/youtube_media_cache.gd",
+      "target": "addons/redot-kicker/media/kick_media_cache.gd",
+      "disposition": "adapted HTTPS-only bounded memory/disk media cache with Kicker-specific data root"
+    },
+    {
+      "source": "addons/redot-tuber/plugin.gd",
+      "target": "addons/redot-kicker/plugin.gd",
+      "disposition": "adapted reversible editor-plugin registration shell; registers only KickClient and setup menu"
+    },
+    {
+      "source": "addons/redot-tuber/editor/youtube_setup_dialog.gd",
+      "target": "addons/redot-kicker/editor/kick_setup_dialog.gd",
+      "disposition": "adapted theme-neutral editor setup shell; content and links replaced with Kick relay architecture"
+    },
+    {
+      "source": "addons/redot-tuber/ui/youtube_connection_panel.gd",
+      "target": "addons/redot-kicker/ui/kick_connection_panel.gd",
+      "disposition": "adapted accessible runtime connection controls; added relay mode/reconnect and destructive confirmations"
+    },
+    {
+      "source": "native/credential-helper/windows/main.cpp",
+      "target": "native/credential-helper/windows/main.cpp",
+      "disposition": "substantially adapted to RKCH/1, RedotKicker Credential Manager namespace, and broker-session labels"
+    },
+    {
+      "source": "native/credential-helper/linux/main.c",
+      "target": "native/credential-helper/linux/main.c",
+      "disposition": "substantially adapted to RKCH/1, org.redotengine.redot_kicker Secret Service schema, and broker-session labels"
+    },
+    {
+      "source": "native/credential-helper/CMakeLists.txt",
+      "target": "native/credential-helper/CMakeLists.txt",
+      "disposition": "adapted standalone Windows/Linux helper build definition"
+    }
+  ],
+  "independent_implementations": [
+    {
+      "target": "relay/",
+      "authority": "official Kick documentation and frozen OpenAPI contract",
+      "disposition": "independent TypeScript/Node implementation; no Twitcher, Redot Tuber, Kick.bot, private endpoint, cookie, or Pusher source reuse"
+    }
+  ],
+  "rejected_sources": [
+    {
+      "project": "Sehelitar/Kick.bot",
+      "commit": "c542f4eff31cbba984a0723f7b17531da1334e77",
+      "disposition": "feature and negative-test inventory only; no code, protocol, endpoint, or private API reuse"
+    }
+  ]
+}

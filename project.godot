@@ -1,0 +1,24 @@
+; redot-kicker development and verification project.
+; Runtime users install only addons/redot-kicker in their own project.
+
+config_version=5
+
+[application]
+
+config/name="Redot Kicker Development"
+config/features=PackedStringArray("4.5")
+run/main_scene="res://tests/integration_lab.tscn"
+
+[display]
+
+window/size/viewport_width=960
+window/size/viewport_height=540
+
+[editor_plugins]
+
+enabled=PackedStringArray("redot-kicker")
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

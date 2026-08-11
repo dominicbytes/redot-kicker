@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "suite": "MS-001",
+  "source_pin": "7f7afe7ace9424f722c8e6b06e32421099c8e7f6",
+  "key_material": "ephemeral synthetic RSA-2048 key generated in memory for each run",
+  "scenarios": [
+    {"id":"valid_signed_event","expected":"accepted_once"},
+    {"id":"body_mutation","expected":"signature_invalid"},
+    {"id":"invalid_signature","expected":"signature_invalid"},
+    {"id":"invalid_signature_malformed_body","expected":"signature_invalid_before_parse"},
+    {"id":"stale_timestamp","expected":"timestamp_stale"},
+    {"id":"replayed_message_id","expected":"duplicate"},
+    {"id":"replay_cache_capacity","expected":"fail_closed_without_evicting_fresh_identity"},
+    {"id":"subscription_mismatch","expected":"subscription_mismatch"},
+    {"id":"channel_mismatch","expected":"channel_mismatch"},
+    {"id":"tenant_mismatch_downlink","expected":"tenant_mismatch"},
+    {"id":"unknown_event_type","expected":"forward_compatible_unknown"},
+    {"id":"unknown_event_version","expected":"forward_compatible_unknown"},
+    {"id":"malformed_signed_payload","expected":"malformed_payload"},
+    {"id":"oversized_payload","expected":"body_too_large"},
+    {"id":"downlink_queue_overflow","expected":"visible_degraded_state"},
+    {"id":"downlink_reconnect_duplicate","expected":"no_second_emission"},
+    {"id":"relay_loss","expected":"visible_disconnected_state"},
+    {"id":"diagnostic_redaction","expected":"no_secret_or_raw_payload"}
+  ]
+}

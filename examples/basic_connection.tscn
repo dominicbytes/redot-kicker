@@ -1,0 +1,33 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://examples/basic_connection.gd" id="1_example"]
+[ext_resource type="Script" path="res://addons/redot-kicker/kick_client.gd" id="2_client"]
+[ext_resource type="Script" path="res://addons/redot-kicker/ui/kick_connection_panel.gd" id="3_panel"]
+
+[node name="BasicConnection" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_example")
+
+[node name="KickClient" type="Node" parent="."]
+script = ExtResource("2_client")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = -24.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ConnectionPanel" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+script = ExtResource("3_panel")
