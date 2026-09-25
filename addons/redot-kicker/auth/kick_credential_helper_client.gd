@@ -4,6 +4,7 @@ extends RefCounted
 ## Adapted from redot-tuber's standalone helper client at commit
 ## 029c22d7d5a5a68abacd8d12aabfea0b8e6536d8 (MIT).
 const ProtocolClass = preload("res://addons/redot-kicker/auth/kick_credential_protocol.gd")
+const HelperPaths = preload("res://addons/redot-kicker/auth/credential_helper_paths.gd")
 const DEFAULT_TIMEOUT_MSEC: int = 15000
 const MAX_RESPONSE_BYTES: int = 16 * 1024
 
@@ -37,15 +38,7 @@ func delete(target: String, cancellation: KickCancellationToken = null) -> KickC
 func resolved_helper_path() -> String:
 	if not helper_path_override.is_empty():
 		return ProjectSettings.globalize_path(helper_path_override) if helper_path_override.begins_with("res://") else helper_path_override
-	var relative: String = ""
-	match OS.get_name():
-		"Windows":
-			relative = "res://addons/redot-kicker/bin/windows/x86_64/redot-kicker-credential-helper.exe"
-		"Linux":
-			relative = "res://addons/redot-kicker/bin/linux/x86_64/redot-kicker-credential-helper"
-		_:
-			return ""
-	return ProjectSettings.globalize_path(relative)
+	return HelperPaths.runtime_path(OS.has_feature("editor"), OS.get_name(), Engine.get_architecture_name(), OS.get_executable_path())
 
 
 func _invoke(command: String, target: String, secret: String, cancellation: KickCancellationToken) -> KickCredentialResult:

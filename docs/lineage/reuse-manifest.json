@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "additional_lineage_notes": "helper-export-reuse.md",
   "donor": {
     "project": "redot-tuber",
     "commit": "029c22d7d5a5a68abacd8d12aabfea0b8e6536d8",
