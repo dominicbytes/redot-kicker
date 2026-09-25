@@ -306,23 +306,16 @@ export class RelayService {
         createdAt: timestamp,
         updatedAt: timestamp,
       };
-      const replacedSessionIds = await this.store.mutate((relayState) => {
+      await this.store.mutate((relayState) => {
         const current = relayState.authRequests.find((entry) => entry.id === record.id);
         if (!current || current.status !== "pending") throw new HttpError(409, "authorization_race", "Authorization request is no longer pending");
-        const replaced = relayState.sessions.filter((entry) => entry.publisherId === session.publisherId && entry.applicationId === session.applicationId && entry.sessionSlot === session.sessionSlot);
-        for (const old of replaced) relayState.pendingRevocations.push({ id: randomToken(12), accessToken: old.accessToken, refreshToken: old.refreshToken, attempts: 0, retryAfter: timestamp });
-        const replacedIds = new Set(replaced.map((entry) => entry.id));
-        relayState.sessions = relayState.sessions.filter((entry) => !replaced.includes(entry));
-        relayState.idempotencyEntries = relayState.idempotencyEntries.filter((entry) => !replacedIds.has(entry.sessionId));
         relayState.sessions.push(session);
         current.status = "completed";
         current.sessionId = session.id;
         current.resultBrokerCredential = brokerCredential;
         current.oauthState = "";
         current.pkceVerifier = "";
-        return replaced.map((entry) => entry.id);
       });
-      for (const id of replacedSessionIds) this.hub.closeSession(id, "session_replaced");
       void this.processPendingRevocations();
       return sendBrowserPage(response, 200, "Kick account connected", "Authorization is complete. Return to the game and close this page.");
     } catch {

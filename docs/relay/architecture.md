@@ -34,6 +34,8 @@ flowchart LR
 7. The relay rotates the broker session independently of the Kick token lifecycle. A stolen broker session is scoped and revocable; it is not a Kick token.
 8. Disconnect deletes local memory and stops transports. Clear-data also deletes the descriptor and OS-vault record. Revoke invalidates the broker session and instructs the relay to revoke and delete associated Kick tokens.
 
+The slot is a local vault/descriptor key, not a relay-wide identity or authority. Each successful OAuth callback creates an independent broker session, even when another account or installation uses the same slot name. Restore, rotation, and revocation require that session's opaque broker credential. A later login cannot prove it owns another installation's session from the slot alone, so it does not replace or revoke that session. If a local reauthorization overwrites its saved credential, the older relay session remains until its broker expiry or explicit credential-based revocation; operators should account for that retention.
+
 ## Webhook ingress
 
 The relay uses the current official Kick verification string exactly:
@@ -52,6 +54,8 @@ Processing order is fixed:
 8. Transform into `relay_downlink.schema.json`, enqueue within a fixed bound, and discard the raw body.
 
 Replay protection fails closed when its bounded cache is full; it never evicts an unexpired identity merely to admit a newer event. The relay enters an explicit degraded state so an attacker cannot force a still-fresh signed replay to be accepted through capacity pressure.
+
+The game-side downlink has a separate rolling dedupe cache (5,000 IDs, one-hour TTL). It evicts the oldest ID at capacity instead of refusing all later chat. This does not change the signed webhook replay rule above: after more than 5,000 distinct delivered IDs in an hour, a very old downlink duplicate may reach game logic again. The game receives/pumps at most 64 packets/events per frame by default and queues at most 256 envelopes. Its WebSocket packet buffer is capped at 1,024 packets, with each packet bounded by `max_packet_bytes`. On game queue overflow it drops the newest excess event, emits `queue_pressure`, enters degraded state, and does not remember the dropped ID, so a later relay retry can be accepted. WebSocket-level buffer exhaustion may close the connection; the relay does not promise retry of a dropped downlink event. Consumers requiring durable exactly-once processing need their own application-level persistence.
 
 Unknown authenticated event types or versions are delivered through a typed `unknown_event` path without disconnecting the session. They are never guessed into a known model.
 

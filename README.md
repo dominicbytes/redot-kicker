@@ -1,10 +1,12 @@
 # Redot Kicker
 
-Redot Kicker is a standalone, typed GDScript addon for connecting Redot games to a consenting player's Kick account and channel. It targets Redot 26.2 on Windows and Linux x86-64 first.
+Redot Kicker is a standalone, typed GDScript addon for connecting Redot games to a consenting player's Kick account and channel. It targets Redot 26.3-rc.1 on Windows and Linux x86-64 first. Windows 26.3 runtime regression tests cover event delivery and account/session isolation; this is not editor/export certification. The independently reproduced 26.3 headless-editor crash and clean Windows/Linux exported-game checks remain release gates.
 
 This repository is **not a Twitcher fork** and will not be merged into Twitcher. Its interaction scope was informed by [dominicbytes/redot-twitcher](https://github.com/dominicbytes/twitcher); the original project is [kanimaru/twitcher](https://github.com/kanimaru/twitcher). Generic implementation foundations were adapted from the independent MIT-licensed Redot Tuber project with file-level provenance in [`docs/lineage/reuse-manifest.json`](docs/lineage/reuse-manifest.json).
 
 ## Current status
+
+See the [Redot 26.3 update and validation notes](docs/validation-26.3.md) for these repairs and the remaining release gates.
 
 The Redot client addon is implemented against the official Kick surface frozen on 2026-08-11:
 

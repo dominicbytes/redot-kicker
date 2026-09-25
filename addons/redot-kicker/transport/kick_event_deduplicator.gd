@@ -5,13 +5,15 @@ extends RefCounted
 ## YouTubeEventDeduplicator at commit 029c22d7d5a5a68abacd8d12aabfea0b8e6536d8 (MIT).
 var _max_entries: int
 var _ttl_seconds: int
+var _evict_oldest_when_full: bool
 var _seen_at: Dictionary = {}
 var _insertion_order: Array[String] = []
 
 
-func _init(max_entries: int = 5000, ttl_seconds: int = 600) -> void:
+func _init(max_entries: int = 5000, ttl_seconds: int = 600, evict_oldest_when_full: bool = false) -> void:
 	_max_entries = maxi(1, max_entries)
 	_ttl_seconds = maxi(1, ttl_seconds)
+	_evict_oldest_when_full = evict_oldest_when_full
 
 
 func check_and_remember(message_id: String, now_unix: int) -> String:
@@ -19,7 +21,9 @@ func check_and_remember(message_id: String, now_unix: int) -> String:
 	if _seen_at.has(message_id):
 		return "duplicate"
 	if _seen_at.size() >= _max_entries:
-		return "capacity_exhausted"
+		if not _evict_oldest_when_full:
+			return "capacity_exhausted"
+		_seen_at.erase(_insertion_order.pop_front())
 	_seen_at[message_id] = now_unix
 	_insertion_order.append(message_id)
 	return "new"

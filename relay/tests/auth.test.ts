@@ -73,6 +73,53 @@ test("restore and rotate invalidate the previous broker credential; revoke delet
   assert.equal(mock.requests.filter((request) => request.path === "/oauth/revoke").length, 2);
 });
 
+test("a shared local slot cannot replace another account or installation", async (t) => {
+  const mock = await startMockKick();
+  const store = new MemoryStateStore();
+  const relay = createRelayService(testConfig(mock), store, new NullLogger());
+  await relay.start();
+  t.after(async () => { await relay.stop(); await mock.close(); });
+
+  const otherAccount = await authorize(relay, ["identity.read"]);
+  await store.mutate((state) => {
+    const session = state.sessions[0]!;
+    session.userId = "222222222";
+    session.channelId = "222222222";
+    session.username = "other-player";
+    session.channelSlug = "other-player";
+  });
+  const firstDevice = await authorize(relay, ["identity.read"]);
+  const secondDevice = await authorize(relay, ["identity.read"]);
+  assert.equal(store.snapshot().sessions.length, 3);
+  assert.equal(store.snapshot().pendingRevocations.length, 0);
+  assert.equal(mock.requests.filter((request) => request.path === "/oauth/revoke").length, 0);
+
+  for (const connection of [otherAccount, firstDevice, secondDevice]) {
+    const restored = await jsonRequest(`${relay.baseUrl}/v1/sessions/restore`, {
+      method: "POST", headers: { authorization: `Broker ${connection.brokerSession}` },
+      body: { schema_version: 1, session_slot: "primary" },
+    });
+    assert.equal(restored.status, 200);
+    connection.brokerSession = String(restored.body.broker_session);
+    assert.equal(restored.body.session.session_id, connection.descriptor.session_id);
+    assert.equal(restored.body.session.channel.id, connection === otherAccount ? "222222222" : "123456789");
+  }
+
+  const revoked = await jsonRequest(`${relay.baseUrl}/v1/sessions/revoke`, {
+    method: "POST", headers: { authorization: `Broker ${firstDevice.brokerSession}` },
+    body: { schema_version: 1, revoke_kick_authorization: true, delete_token_state: true },
+  });
+  assert.equal(revoked.status, 200);
+  assert.deepEqual(store.snapshot().sessions.map((session) => session.id).sort(),
+    [String(otherAccount.descriptor.session_id), String(secondDevice.descriptor.session_id)].sort());
+  for (const connection of [otherAccount, secondDevice]) {
+    const rotated = await jsonRequest(`${relay.baseUrl}/v1/sessions/rotate`, {
+      method: "POST", headers: { authorization: `Broker ${connection.brokerSession}` }, body: { schema_version: 1 },
+    });
+    assert.equal(rotated.status, 200);
+  }
+});
+
 test("failed upstream revocation deletes local token state and reports a retryable pending condition", async (t) => {
   const mock = await startMockKick();
   mock.revokeStatus = 503;

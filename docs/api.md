@@ -2,7 +2,7 @@
 
 ## `KickClient`
 
-One `KickClient` owns one authorized Kick identity/channel and one stable session slot. Create separate clients with separate slots for multiple accounts.
+One `KickClient` owns one authorized Kick identity/channel and one stable local session slot. Create separate clients with separate slots for multiple accounts within a game installation. Different installations may both use `primary`; the relay does not treat that caller-chosen name as permission to replace another session.
 
 ```gdscript
 var error := client.configure(config, capabilities, "primary")
@@ -61,6 +61,8 @@ Events:
 - `unknown_event_received`
 
 All use a typed `KickEvent`. It includes common broadcaster/actor users and normalized event-specific fields while preserving a copied payload for forward-compatible optional fields. Unknown event types stay isolated and never tear down the connection.
+
+`KickRelayEventSource.max_events_per_frame` defaults to 64 and bounds both WebSocket packet reads and game signal deliveries per frame. Its bounded queue reports overflow via `queue_pressure`; delivery is best effort, not durable. The client-side 5,000-ID dedupe window rolls oldest-first at capacity, while signed webhook replay protection remains fail-closed at the relay.
 
 ## Cancellation and retries
 

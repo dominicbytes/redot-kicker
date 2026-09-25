@@ -18,6 +18,7 @@ signal queue_pressure(queued: int, capacity: int)
 signal error_occurred(error: KickApiError)
 
 @export_range(1, 4096, 1) var max_queue_entries: int = 256
+@export_range(1, 256, 1) var max_events_per_frame: int = 64
 @export_range(1024, 1048576, 1024) var max_packet_bytes: int = 256 * 1024
 
 var state: String = "disconnected"
@@ -26,7 +27,7 @@ var _descriptor: KickSessionDescriptor = null
 var _allowed_subscription_ids: PackedStringArray = PackedStringArray()
 var _queue: Array[Dictionary] = []
 var _normalizer: KickEventNormalizer = NormalizerClass.new()
-var _deduplicator: KickEventDeduplicator = DeduplicatorClass.new(5000, 3600)
+var _deduplicator: KickEventDeduplicator = DeduplicatorClass.new(5000, 3600, true)
 var _intentional_close: bool = false
 
 
@@ -41,6 +42,8 @@ func connect_with_ticket(ticket: KickEventTicket, descriptor: KickSessionDescrip
 	_allowed_subscription_ids = ticket.subscription_ids.duplicate()
 	_intentional_close = false
 	_peer = WebSocketPeer.new()
+	_peer.inbound_buffer_size = max_packet_bytes
+	_peer.max_queued_packets = mini(max_queue_entries * 4, 1024)
 	_peer.handshake_headers = PackedStringArray(["Authorization: Ticket " + ticket.ticket])
 	var socket_url: String = ticket.socket_url
 	ticket.clear_ticket()
@@ -93,7 +96,10 @@ func _process(_delta: float) -> void:
 		if state != "connected":
 			_set_state("connected", "relay_authenticated")
 		_receive_packets()
-		_pump_one()
+		for _event_index: int in max_events_per_frame:
+			if _queue.is_empty():
+				break
+			_pump_one()
 	elif ready_state == WebSocketPeer.STATE_CLOSING:
 		_set_state("closing", "relay_closing")
 	elif ready_state == WebSocketPeer.STATE_CLOSED:
@@ -104,7 +110,9 @@ func _process(_delta: float) -> void:
 
 
 func _receive_packets() -> void:
-	while _peer != null and _peer.get_available_packet_count() > 0:
+	var received_count: int = 0
+	while _peer != null and _peer.get_available_packet_count() > 0 and received_count < max_events_per_frame:
+		received_count += 1
 		var packet: PackedByteArray = _peer.get_packet()
 		if packet.size() > max_packet_bytes:
 			_fail("packet_too_large", "Kick relay packet exceeded the configured size limit")
@@ -131,7 +139,7 @@ func _receive_packets() -> void:
 			queue_pressure.emit(_queue.size(), max_queue_entries)
 			continue
 		var remembered: String = _deduplicator.check_and_remember(message_id, now_unix)
-		if remembered != "accepted":
+		if remembered != "new":
 			_fail("deduplication_capacity", "Kick event replay cache is at capacity")
 			continue
 		_queue.append(envelope.duplicate(true))

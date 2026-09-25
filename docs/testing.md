@@ -12,7 +12,9 @@
 
 ## Required commands
 
-Use Redot 26.2 without `-d`, a bounded `--quit-after`, and a wall-clock timeout. Run `--editor --quit` once to refresh script classes before project checks.
+Use the explicit target Redot 26.3-rc.1 binary without `-d`, with `--quit-after` of at least 2 and a wall-clock timeout. Its headless editor import currently crashes even for an empty project; run script gates with an existing generated script-class cache and report editor admission as blocked, not passed.
+
+For the 26.3 remediation branch, `tests/run_streaming_repair_suite.gd` exercises the actual loopback WebSocket receiver, first-event deduplication, a 512-event burst, replay, and queue overflow/retry. `relay/tests/auth.test.ts` covers independent same-slot accounts/installations and credential-scoped restore/revoke. The separate Redot 26.3-rc.1 headless editor-import crash prevents treating script-test success as full editor compatibility.
 
 ## Still blocked on live inputs
 
