@@ -25,6 +25,7 @@ export class RelayService {
   private readonly hub: DownlinkHub;
   private readonly server: Server;
   private readonly limiter = new FixedWindowLimiter();
+  private readonly authorizationLocks = new Map<string, Promise<boolean>>();
   private readonly refreshLocks = new Map<string, Promise<SessionRecord>>();
   private publicKeyPem = "";
   private webhook: WebhookProcessor;
@@ -291,6 +292,22 @@ export class RelayService {
       await this.failAuthRequest(record.id, "authorization_denied");
       return sendBrowserPage(response, 400, "Authorization not completed", "Kick did not authorize this connection. You can close this page.");
     }
+    let completion = this.authorizationLocks.get(record.id);
+    if (!completion) {
+      completion = this.completeAuthorization(record, code);
+      this.authorizationLocks.set(record.id, completion);
+    }
+    try {
+      const completed = await completion;
+      return completed
+        ? sendBrowserPage(response, 200, "Kick account connected", "Authorization is complete. Return to the game and close this page.")
+        : sendBrowserPage(response, 502, "Authorization failed", "The relay could not complete Kick authorization. Return to the game and try again.");
+    } finally {
+      if (this.authorizationLocks.get(record.id) === completion) this.authorizationLocks.delete(record.id);
+    }
+  }
+
+  private async completeAuthorization(record: AuthRequestRecord, code: string): Promise<boolean> {
     let grant: TokenGrant | null = null;
     try {
       const authorizedGrant = await this.kick.exchangeCode(code, record.pkceVerifier, `${this.baseUrl}/v1/oauth/callback`);
@@ -322,7 +339,7 @@ export class RelayService {
       };
       await this.store.mutate((relayState) => {
         const current = relayState.authRequests.find((entry) => entry.id === record.id);
-        if (!current || current.status !== "pending") throw new HttpError(409, "authorization_race", "Authorization request is no longer pending");
+        if (!current || current.status !== "pending" || current.expiresAt <= nowSeconds()) throw new HttpError(409, "authorization_race", "Authorization request is no longer pending");
         relayState.sessions.push(session);
         current.status = "completed";
         current.sessionId = session.id;
@@ -331,7 +348,7 @@ export class RelayService {
         current.pkceVerifier = "";
       });
       void this.processPendingRevocations();
-      return sendBrowserPage(response, 200, "Kick account connected", "Authorization is complete. Return to the game and close this page.");
+      return true;
     } catch {
       if (grant) {
         const failedGrant = grant;
@@ -339,7 +356,7 @@ export class RelayService {
         void this.processPendingRevocations();
       }
       await this.failAuthRequest(record.id, "authorization_failed");
-      return sendBrowserPage(response, 502, "Authorization failed", "The relay could not complete Kick authorization. Return to the game and try again.");
+      return false;
     }
   }
 
@@ -599,7 +616,7 @@ export class RelayService {
   private async cleanupExpired(): Promise<void> {
     const now = nowSeconds();
     const expiredIds = await this.store.mutate((state) => {
-      const expiredAuthSessionIds = new Set(state.authRequests.filter((request) => request.status === "completed" && request.expiresAt <= now).map((request) => request.sessionId));
+      const expiredAuthSessionIds = new Set(state.authRequests.filter((request) => (request.status === "failed" || request.status !== "consumed" && request.expiresAt <= now)).map((request) => request.sessionId));
       const expired = state.sessions.filter((session) => session.brokerExpiresAt <= now || expiredAuthSessionIds.has(session.id));
       const expiredSessionIds = new Set(expired.map((session) => session.id));
       for (const session of expired) state.pendingRevocations.push({ id: randomToken(12), accessToken: session.accessToken, refreshToken: session.refreshToken, attempts: 0, retryAfter: now });
@@ -667,7 +684,7 @@ export class RelayService {
   private async failAuthRequest(id: string, code: string): Promise<void> {
     await this.store.mutate((state) => {
       const record = state.authRequests.find((entry) => entry.id === id);
-      if (!record) return;
+      if (!record || record.status !== "pending") return;
       record.status = "failed";
       record.failureCode = code;
       record.oauthState = "";
@@ -842,7 +859,7 @@ function hasScopes(session: SessionRecord, contract: OperationContract): boolean
 }
 
 function pruneState(state: { authRequests: AuthRequestRecord[]; replayEntries: Array<{ expiresAt: number }>; idempotencyEntries: Array<{ expiresAt: number }> }, now: number): void {
-  state.authRequests = state.authRequests.filter((entry) => entry.expiresAt > now || entry.status === "completed");
+  state.authRequests = state.authRequests.filter((entry) => entry.expiresAt > now || entry.status === "completed" || entry.status !== "consumed" && Boolean(entry.sessionId));
   state.replayEntries = state.replayEntries.filter((entry) => entry.expiresAt > now);
   state.idempotencyEntries = state.idempotencyEntries.filter((entry) => entry.expiresAt > now);
 }

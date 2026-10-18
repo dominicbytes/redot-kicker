@@ -211,3 +211,66 @@ test("startup removes and revokes a completed authorization result that expired 
   assert.equal(store.snapshot().sessions.length, 0);
   assert.equal(store.snapshot().idempotencyEntries.length, 0);
 });
+
+test("concurrent OAuth callbacks share completion without failing login or revoking live tokens", async (t) => {
+  const mock = await startMockKick();
+  let releaseToken: () => void = () => undefined;
+  let tokenStarted: () => void = () => undefined;
+  const started = new Promise<void>((resolve) => { tokenStarted = resolve; });
+  const gate = new Promise<void>((resolve) => { releaseToken = resolve; });
+  mock.beforeToken = async () => { tokenStarted(); await gate; };
+  const store = new MemoryStateStore();
+  const relay = createRelayService(testConfig(mock), store, new NullLogger());
+  await relay.start();
+  t.after(async () => { releaseToken(); await relay.stop(); await mock.close(); });
+  const proof = Buffer.alloc(32, 7).toString("base64url");
+  const proofHash = Buffer.from(await crypto.subtle.digest("SHA-256", Buffer.alloc(32, 7))).toString("base64url");
+  const begin = await jsonRequest(`${relay.baseUrl}/v1/auth/requests`, { method: "POST", body: { schema_version: 1, publisher_id: "fixture-publisher", application_id: "fixture-application", session_slot: "primary", capabilities: ["identity.read"], proof_sha256: proofHash } });
+  const record = store.snapshot().authRequests[0]!;
+  const callbackUrl = `${relay.baseUrl}/v1/oauth/callback?code=fixture-code&state=${record.oauthState}`;
+  const first = fetch(callbackUrl);
+  await started;
+  let secondRead: () => void = () => undefined;
+  const read = new Promise<void>((resolve) => { secondRead = resolve; });
+  const snapshot = store.snapshot.bind(store);
+  t.mock.method(store, "snapshot", () => { secondRead(); return snapshot(); });
+  const second = fetch(callbackUrl);
+  await read; // The second callback has observed the pending request before exchange completes.
+  releaseToken();
+  const callbacks = await Promise.all([first, second]);
+  assert.deepEqual(callbacks.map((response) => response.status), [200, 200]);
+  assert.equal(mock.requests.filter((request) => request.path === "/oauth/token").length, 1);
+  assert.equal(store.snapshot().sessions.length, 1);
+  assert.equal(store.snapshot().authRequests[0]!.status, "completed");
+  assert.equal(store.snapshot().pendingRevocations.length, 0);
+  assert.equal(mock.requests.filter((request) => request.path === "/oauth/revoke").length, 0);
+  const polled = await jsonRequest(`${relay.baseUrl}/v1/auth/requests/${begin.body.request_id}`, { headers: { "x-redot-kicker-proof": proof } });
+  assert.equal(polled.status, 200);
+  assert.ok(polled.body.broker_session);
+  assert.equal((await jsonRequest(`${relay.baseUrl}/v1/auth/requests/${begin.body.request_id}`, { headers: { "x-redot-kicker-proof": proof } })).status, 410);
+});
+
+for (const [status, expired] of [["failed", true], ["failed", false], ["pending", true], ["completed", true], ["consumed", true]] as const) {
+  test(`cleanup reclaims a ${status} auth session (expired=${expired}) unless consumed`, async (t) => {
+    const mock = await startMockKick();
+    mock.revokeStatus = 503; // Retain queued revocations for deterministic inspection.
+    const store = new MemoryStateStore();
+    const relay = createRelayService(testConfig(mock), store, new NullLogger());
+    await relay.start();
+    await authorize(relay, ["identity.read"]);
+    await store.mutate((state) => {
+      state.authRequests[0]!.status = status;
+      state.authRequests[0]!.expiresAt = Math.floor(Date.now() / 1000) + (expired ? -1 : 60);
+    });
+    // Beginning another login must not prune away the linked request before session cleanup.
+    const begin = await jsonRequest(`${relay.baseUrl}/v1/auth/requests`, { method: "POST", body: { schema_version: 1, publisher_id: "fixture-publisher", application_id: "fixture-application", session_slot: "other", capabilities: ["identity.read"], proof_sha256: "a".repeat(43) } });
+    assert.equal(begin.status, 201);
+    await relay.stop();
+    const restarted = createRelayService(testConfig(mock), store, new NullLogger());
+    await restarted.start();
+    t.after(async () => { await restarted.stop(); await mock.close(); });
+    assert.equal(store.snapshot().authRequests.filter((entry) => entry.status === "pending").length, 1);
+    assert.equal(store.snapshot().sessions.length, status === "consumed" ? 1 : 0);
+    assert.equal(store.snapshot().pendingRevocations.length, status === "consumed" ? 0 : 1);
+  });
+}
