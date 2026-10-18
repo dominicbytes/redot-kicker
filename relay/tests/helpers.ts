@@ -20,6 +20,7 @@ export interface MockKick {
   requests: CapturedRequest[];
   tokenScope: string;
   revokeStatus: number;
+  beforeToken?: () => Promise<void>;
   close(): Promise<void>;
 }
 
@@ -51,6 +52,7 @@ export async function startMockKick(): Promise<MockKick> {
     }
     requests.push({ method: request.method ?? "", path: url.pathname, query: url.searchParams, headers: request.headers, body, rawBody: bodyBytes.toString("utf8") });
     if (url.pathname === "/oauth/token") {
+      await model.beforeToken?.();
       const form = body as Record<string, string>;
       const refreshed = form.grant_type === "refresh_token";
       return sendJson(response, 200, {
