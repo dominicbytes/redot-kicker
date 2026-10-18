@@ -38,7 +38,7 @@ static func from_http(status_code: int, payload: Variant, response_request_id: S
 		for key: Variant in errors_value:
 			value.reasons.append(str(key))
 	value.category = _category_for(status_code)
-	value.is_retryable = status_code in [408, 425, 429, 500, 502, 503, 504]
+	value.is_retryable = status_code in [408, 425, 429, 500, 502, 503, 504] or str(source.get("code", "")) == "subscription_degraded"
 	return value
 
 

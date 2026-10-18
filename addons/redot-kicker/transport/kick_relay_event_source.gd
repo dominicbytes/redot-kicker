@@ -42,6 +42,7 @@ func connect_with_ticket(ticket: KickEventTicket, descriptor: KickSessionDescrip
 	_allowed_subscription_ids = ticket.subscription_ids.duplicate()
 	_intentional_close = false
 	_peer = WebSocketPeer.new()
+	_peer.heartbeat_interval = 20.0
 	_peer.inbound_buffer_size = max_packet_bytes
 	_peer.max_queued_packets = mini(max_queue_entries * 4, 1024)
 	_peer.handshake_headers = PackedStringArray(["Authorization: Ticket " + ticket.ticket])
