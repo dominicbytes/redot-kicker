@@ -78,7 +78,12 @@ Healthy output contains only protocol state and aggregate counts. It never inclu
 | `REDOT_KICKER_KICK_CLIENT_ID` | Kick developer application client ID |
 | `REDOT_KICKER_CLIENT_SECRET_FILE` | Mounted file containing the Kick client secret |
 | `REDOT_KICKER_MASTER_KEY_FILE` | Mounted file containing exactly 32 bytes encoded as base64url or 64 hex characters |
+| `REDOT_KICKER_TRUSTED_PROXY_HOPS` | Number of trusted proxy hops (0?32); defaults to 0, which ignores `X-Forwarded-For` |
 | `REDOT_KICKER_STATE_FILE` | Encrypted state path; defaults to `/var/lib/redot-kicker/state.enc` |
+
+Set `REDOT_KICKER_TRUSTED_PROXY_HOPS` only when every connection reaches the relay through exactly that many trusted proxies. Restrict direct access to the relay and configure proxies to append or replace `X-Forwarded-For` correctly. The relay walks from the socket toward the client and selects the rightmost untrusted address: one hop selects the last forwarded address; two select the second-last. Malformed or too-short chains fall back to the socket address. A forged leftmost address cannot change the selected client.
+
+Requests are limited to 300/minute per client IP for unauthenticated routes, per hashed valid broker credential for authenticated routes, and per authorization request ID for polling with a valid proof. Authorization creation additionally allows 10/minute per client IP. Invalid credentials and proofs use the IP bucket. `/v1/events/webhook` is exempt from these buckets so shared proxy traffic cannot block Kick delivery; signature, freshness, replay, subscription, and body-size checks still apply. Apply ingress connection/body limits at the proxy to bound unauthenticated webhook traffic.
 
 Optional bounded settings are defined in `src/config.ts`. Inline `REDOT_KICKER_CLIENT_SECRET` and `REDOT_KICKER_MASTER_KEY` values are deliberately rejected.
 

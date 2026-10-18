@@ -25,6 +25,9 @@ test("configuration accepts mounted secrets and rejects inline or malformed secr
     const loaded = await loadRelayConfig(environment);
     assert.equal(loaded.kickClientSecret, "mounted-client-secret");
     assert.equal(loaded.masterKey.length, 32);
+    assert.equal(loaded.trustedProxyHops, 0);
+    assert.equal((await loadRelayConfig({ ...environment, REDOT_KICKER_TRUSTED_PROXY_HOPS: "2" })).trustedProxyHops, 2);
+    for (const value of ["-1", "1.5", "33", "invalid"]) await assert.rejects(() => loadRelayConfig({ ...environment, REDOT_KICKER_TRUSTED_PROXY_HOPS: value }), /TRUSTED_PROXY_HOPS/);
     await assert.rejects(() => loadRelayConfig({ ...environment, REDOT_KICKER_CLIENT_SECRET: "inline" }), /rejected/);
     await assert.rejects(() => loadRelayConfig({ ...environment, REDOT_KICKER_MASTER_KEY: "inline" }), /rejected/);
     await assert.rejects(() => loadRelayConfig({ ...environment, REDOT_KICKER_PUBLIC_BASE_URL: "http://relay.example.invalid" }), /HTTPS/);

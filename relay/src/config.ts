@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 export interface RelayConfig {
+  trustedProxyHops: number;
   host: string;
   port: number;
   publicBaseUrl: string;
@@ -39,6 +40,7 @@ export async function loadRelayConfig(environment: NodeJS.ProcessEnv = process.e
   const masterKeyPath = required(environment, "REDOT_KICKER_MASTER_KEY_FILE");
   const publicKeyPath = environment.REDOT_KICKER_PUBLIC_KEY_FILE?.trim() ?? "";
   const config: RelayConfig = {
+    trustedProxyHops: integer(environment.REDOT_KICKER_TRUSTED_PROXY_HOPS, 0, 0, 32, "REDOT_KICKER_TRUSTED_PROXY_HOPS"),
     host: environment.REDOT_KICKER_HOST?.trim() || "0.0.0.0",
     port: integer(environment.REDOT_KICKER_PORT, 8080, 1, 65535, "REDOT_KICKER_PORT"),
     publicBaseUrl: required(environment, "REDOT_KICKER_PUBLIC_BASE_URL").replace(/\/$/, ""),
@@ -74,6 +76,7 @@ export async function loadRelayConfig(environment: NodeJS.ProcessEnv = process.e
 }
 
 export function validateRelayConfig(config: RelayConfig): void {
+  if (!Number.isSafeInteger(config.trustedProxyHops) || config.trustedProxyHops < 0 || config.trustedProxyHops > 32) throw new Error("trustedProxyHops must be an integer from 0 through 32");
   for (const [name, value] of [["tenantId", config.tenantId], ["publisherId", config.publisherId], ["applicationId", config.applicationId]] as const) {
     if (!/^[A-Za-z0-9._-]{1,128}$/.test(value)) throw new Error(`${name} must contain only letters, digits, dot, underscore, and hyphen`);
   }
