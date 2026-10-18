@@ -117,6 +117,54 @@ function rejectedUpgrade(url: string, ticket: string): Promise<number> {
   });
 }
 
+for (const operation of ["subscriptions.create", "subscriptions.list"]) {
+  test(`${operation} closes channel downlinks on a new active subscription and reconnect receives events`, async (t) => {
+    const mock = await startMockKick();
+    const store = new MemoryStateStore();
+    const relay = createRelayService(testConfig(mock), store, new NullLogger());
+    await relay.start();
+    t.after(async () => { await relay.stop(); await mock.close(); });
+    const first = await authorize(relay, ["events.receive", "events.manage"]);
+    const second = await authorize(relay, ["events.receive"]);
+    const unrelated = await authorize(relay, ["events.receive"]);
+    // Tickets require at least one subscription; connect before the new subscription exists.
+    await store.mutate((state) => {
+      state.subscriptions.push({ id: "old-subscription", channelId: "123456789", eventType: "channel.followed", eventVersion: 1, active: true, updatedAt: 1 });
+      if (operation === "subscriptions.list") state.subscriptions.push({ id: "01JTESTSUBSCRIPTION0000000001", channelId: "123456789", eventType: "chat.message.sent", eventVersion: 1, active: false, updatedAt: 1 });
+      state.sessions.find((entry) => entry.id === unrelated.descriptor.session_id)!.channelId = "777";
+      state.subscriptions.push({ id: "other-subscription", channelId: "777", eventType: "channel.followed", eventVersion: 1, active: true, updatedAt: 1 });
+    });
+    const open = async (credential: string) => {
+      const ticket = await jsonRequest(`${relay.baseUrl}/v1/events/tickets`, { method: "POST", headers: { authorization: `Broker ${credential}` }, body: { schema_version: 1 } });
+      assert.equal(ticket.status, 200);
+      const socket = new WebSocket(String(ticket.body.socket_url), { headers: { authorization: `Ticket ${ticket.body.ticket}` } });
+      await onceOpen(socket);
+      return socket;
+    };
+    const sockets = await Promise.all([open(first.brokerSession), open(second.brokerSession), open(unrelated.brokerSession)]);
+    const staleTicket = await jsonRequest(`${relay.baseUrl}/v1/events/tickets`, { method: "POST", headers: { authorization: `Broker ${first.brokerSession}` }, body: { schema_version: 1 } });
+    const changed = sockets.slice(0, 2).map((socket) => new Promise<string>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("subscription close timeout")), 2000);
+      socket.once("close", (_code, reason) => { clearTimeout(timer); resolve(reason.toString()); });
+    }));
+    const auth = { authorization: `Broker ${first.brokerSession}` };
+    const action = () => jsonRequest(`${relay.baseUrl}/v1/kick/actions/${operation}`, { method: "POST", headers: auth, body: { schema_version: 1, query: {}, path_parameters: {}, body: operation === "subscriptions.create" ? { events: [{ name: "chat.message.sent", version: 1 }] } : {}, confirmed: false } });
+    const closing = Promise.all(changed);
+    // Install rejection handling before the HTTP round trip.
+    const result = await Promise.all([action(), closing]);
+    assert.equal(result[0].status, 200);
+    assert.deepEqual(result[1], ["subscriptions_changed", "subscriptions_changed"]);
+    assert.equal(sockets[2]!.readyState, WebSocket.OPEN);
+    assert.equal(await rejectedUpgrade(String(staleTicket.body.socket_url), String(staleTicket.body.ticket)), 401);
+    const reconnected = await open(first.brokerSession);
+    assert.equal((await action()).status, 200); // Re-observing the same set must not close the socket.
+    assert.equal(reconnected.readyState, WebSocket.OPEN);
+    const payload = Buffer.from(JSON.stringify({ broadcaster: { user_id: 123456789 }, content: "new subscription" }));
+    const message = onceMessage(reconnected);
+    assert.equal((await fetch(`${relay.baseUrl}/v1/events/webhook`, { method: "POST", headers: signedWebhook(mock, payload), body: payload })).status, 204);
+    assert.equal((JSON.parse(await message) as Record<string, any>).payload.content, "new subscription");
+  });
+}
 test("heartbeat keeps responsive sockets and terminates sockets missing a pong", async (t) => {
   const mock = await startMockKick();
   t.mock.timers.enable({ apis: ["setInterval"] });
