@@ -70,6 +70,7 @@ export class DownlinkHub {
   }
 
   closeSession(sessionId: string, reason = "session_revoked"): void {
+    for (const [key, ticket] of this.tickets) if (ticket.sessionId === sessionId) this.tickets.delete(key);
     for (const client of this.clients) if (client.sessionId === sessionId) client.socket.close(1008, reason.slice(0, 120));
   }
 

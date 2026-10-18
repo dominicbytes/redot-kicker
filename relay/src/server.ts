@@ -558,7 +558,8 @@ export class RelayService {
     }
     if (operationId !== "subscriptions.create" && operationId !== "subscriptions.list") return;
     const observed = extractSubscriptions(body, session.channelId);
-    const removed = await this.store.mutate((state) => {
+    const changes = await this.store.mutate((state) => {
+      const previousIds = new Set(state.subscriptions.filter((entry) => entry.active && entry.channelId === session.channelId).map((entry) => entry.id));
       const removedIds: string[] = [];
       if (operationId === "subscriptions.list") {
         const ids = new Set(observed.map((entry) => entry.id));
@@ -573,9 +574,12 @@ export class RelayService {
         if (existing) Object.assign(existing, subscription);
         else state.subscriptions.push(subscription);
       }
-      return removedIds;
+      return { removed: removedIds.length > 0, added: observed.some((entry) => !previousIds.has(entry.id)) };
     });
-    if (removed.length > 0) for (const active of this.store.snapshot().sessions.filter((entry) => entry.channelId === session.channelId)) this.hub.closeSession(active.id, "subscription_degraded");
+    if (changes.added || changes.removed) {
+      const reason = changes.added ? "subscriptions_changed" : "subscription_degraded";
+      for (const active of this.store.snapshot().sessions.filter((entry) => entry.channelId === session.channelId)) this.hub.closeSession(active.id, reason);
+    }
   }
 
   private async cleanupExpired(): Promise<void> {
