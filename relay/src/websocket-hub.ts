@@ -18,6 +18,7 @@ interface ClientRecord {
   queue: string[];
   queuedBytes: number;
   sending: boolean;
+  alive: boolean;
 }
 
 export class DownlinkHub {
@@ -26,6 +27,7 @@ export class DownlinkHub {
   private readonly server = new WebSocketServer({ noServer: true, perMessageDeflate: false, clientTracking: false, maxPayload: 1024 });
   private readonly tickets = new Map<string, TicketRecord>();
   private readonly clients = new Set<ClientRecord>();
+  private heartbeatTimer: NodeJS.Timeout | null = null;
   private httpServer: HttpServer | null = null;
 
   constructor(config: RelayConfig, logger: SafeLogger) {
@@ -37,6 +39,8 @@ export class DownlinkHub {
     if (this.httpServer) throw new Error("Downlink hub is already attached");
     this.httpServer = server;
     server.on("upgrade", this.handleUpgrade);
+    this.heartbeatTimer = setInterval(() => this.heartbeat(), 20_000);
+    this.heartbeatTimer.unref();
   }
 
   issueTicket(sessionId: string, subscriptionIds: string[], socketUrl: string): { ticket: string; expiresAt: number; socketUrl: string } {
@@ -79,6 +83,8 @@ export class DownlinkHub {
   }
 
   async close(): Promise<void> {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = null;
     if (this.httpServer) this.httpServer.off("upgrade", this.handleUpgrade);
     this.httpServer = null;
     for (const client of this.clients) client.socket.terminate();
@@ -103,11 +109,23 @@ export class DownlinkHub {
   };
 
   private accept(socket: WebSocket, ticket: TicketRecord): void {
-    const client: ClientRecord = { socket, sessionId: ticket.sessionId, subscriptionIds: new Set(ticket.subscriptionIds), queue: [], queuedBytes: 0, sending: false };
+    const client: ClientRecord = { socket, sessionId: ticket.sessionId, subscriptionIds: new Set(ticket.subscriptionIds), queue: [], queuedBytes: 0, sending: false, alive: true };
     this.clients.add(client);
+    socket.on("pong", () => { client.alive = true; });
     socket.on("message", () => socket.close(1008, "client_messages_not_supported"));
     socket.once("close", () => this.clients.delete(client));
     socket.once("error", () => this.clients.delete(client));
+  }
+
+  private heartbeat(): void {
+    for (const client of this.clients) {
+      if (!client.alive || client.socket.readyState !== WebSocket.OPEN) {
+        client.socket.terminate();
+        continue;
+      }
+      client.alive = false;
+      client.socket.ping();
+    }
   }
 
   private flush(client: ClientRecord): void {

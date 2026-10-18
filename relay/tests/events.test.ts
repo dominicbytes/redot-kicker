@@ -1,3 +1,4 @@
+import { once } from "node:events";
 import assert from "node:assert/strict";
 import test from "node:test";
 import WebSocket from "ws";
@@ -164,3 +165,43 @@ for (const operation of ["subscriptions.create", "subscriptions.list"]) {
     assert.equal((JSON.parse(await message) as Record<string, any>).payload.content, "new subscription");
   });
 }
+test("heartbeat keeps responsive sockets and terminates sockets missing a pong", async (t) => {
+  const mock = await startMockKick();
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const relay = createRelayService(testConfig(mock), new MemoryStateStore(), new NullLogger());
+  await relay.start();
+  t.after(async () => { await relay.stop(); await mock.close(); });
+  const connected = await authorize(relay, ["events.receive", "events.manage"]);
+  const auth = { authorization: `Broker ${connected.brokerSession}` };
+  await jsonRequest(`${relay.baseUrl}/v1/kick/actions/subscriptions.create`, { method: "POST", headers: auth, body: { schema_version: 1, query: {}, path_parameters: {}, body: { events: [{ name: "chat.message.sent", version: 1 }] }, confirmed: false } });
+  const sockets: WebSocket[] = [];
+  for (const autoPong of [true, false]) {
+    const ticket = await jsonRequest(`${relay.baseUrl}/v1/events/tickets`, { method: "POST", headers: auth, body: { schema_version: 1 } });
+    const socket = new WebSocket(String(ticket.body.socket_url), { autoPong, headers: { authorization: `Ticket ${ticket.body.ticket}` } });
+    sockets.push(socket);
+    await onceOpen(socket);
+  }
+  const [healthy, dead] = sockets as [WebSocket, WebSocket];
+  const pings = sockets.map((socket) => once(socket, "ping", { signal: AbortSignal.timeout(1000) }));
+  t.mock.timers.tick(20_000);
+  await Promise.all(pings);
+  // Round-trip through the same server after ws has sent its automatic pong.
+  await jsonRequest(`${relay.baseUrl}/v1/health`);
+  const closed = once(dead, "close", { signal: AbortSignal.timeout(1000) });
+  t.mock.timers.tick(20_000);
+  await closed;
+  assert.equal(healthy.readyState, WebSocket.OPEN);
+  assert.equal((await jsonRequest(`${relay.baseUrl}/v1/health`)).body.data.active_downlinks, 1);
+});
+
+test("missing subscriptions return a retryable ticket failure", async (t) => {
+  const mock = await startMockKick();
+  const relay = createRelayService(testConfig(mock), new MemoryStateStore(), new NullLogger());
+  await relay.start();
+  t.after(async () => { await relay.stop(); await mock.close(); });
+  const connected = await authorize(relay, ["events.receive"]);
+  const ticket = await jsonRequest(`${relay.baseUrl}/v1/events/tickets`, { method: "POST", headers: { authorization: `Broker ${connected.brokerSession}` }, body: { schema_version: 1 } });
+  assert.equal(ticket.status, 409);
+  assert.equal(ticket.body.error.code, "subscription_degraded");
+  assert.equal(ticket.body.error.retryable, true);
+});

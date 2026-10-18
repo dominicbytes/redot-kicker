@@ -94,6 +94,7 @@ func _test_actual_receiver() -> void:
 		source.queue_free()
 		server.stop()
 		return
+	_check(source._peer.heartbeat_interval == 20.0, "client WebSocket heartbeat is enabled")
 	_check(source._peer.max_queued_packets <= 1024, "engine WebSocket packet queue is capped")
 
 	peer.send_text(JSON.stringify(_envelope("first")))

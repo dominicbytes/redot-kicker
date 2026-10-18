@@ -474,7 +474,7 @@ export class RelayService {
     const session = this.authenticate(request);
     if (!session.capabilities.includes("events.receive")) throw new HttpError(403, "capability_missing", "Broker session does not grant event delivery");
     const subscriptions = this.store.snapshot().subscriptions.filter((entry) => entry.active && entry.channelId === session.channelId).map((entry) => entry.id).sort();
-    if (subscriptions.length === 0) throw new HttpError(409, "subscription_degraded", "No healthy Kick event subscriptions exist for this channel");
+    if (subscriptions.length === 0) throw new HttpError(409, "subscription_degraded", "No healthy Kick event subscriptions exist for this channel", true);
     const socket = new URL(this.baseUrl);
     socket.protocol = socket.protocol === "https:" ? "wss:" : "ws:";
     socket.pathname = "/v1/events/socket";
