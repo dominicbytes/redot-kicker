@@ -151,18 +151,24 @@ func connect_relay() -> KickApiError:
 		return KickApiError.custom("authorization", "Connect a Kick account before connecting the relay")
 	if not _requested_capabilities.has("events.receive"):
 		return KickApiError.custom("capability_missing", "The events.receive capability was not requested")
+	var generation: int = _reconnect_generation
 	_set_state("relay_connecting", "requesting_ticket")
 	var ticket: KickEventTicket = await _auth.create_event_ticket()
+	if generation != _reconnect_generation:
+		ticket.clear_ticket()
+		return KickApiError.from_transport(ERR_SKIP, "Relay connection cancelled")
 	if ticket.error != null:
 		_on_error(ticket.error)
 		_set_mode("REST_ONLY")
 		_set_state("degraded", "event_ticket_failed")
+		_retry_relay_connection(ticket.error, generation)
 		return ticket.error
 	var connect_error: KickApiError = _events.connect_with_ticket(ticket, connected_descriptor)
 	if connect_error != null:
 		_on_error(connect_error)
 		_set_mode("REST_ONLY")
 		_set_state("degraded", "relay_connect_failed")
+		_retry_relay_connection(connect_error, generation)
 	return connect_error
 
 
@@ -267,6 +273,11 @@ func _on_relay_state_changed(_previous: String, current: String, reason: String)
 				_set_state("degraded", reason)
 				if not _events.was_intentional_close():
 					_schedule_reconnect()
+
+
+func _retry_relay_connection(error: KickApiError, generation: int) -> void:
+	if generation == _reconnect_generation and (error.is_retryable or error.http_status >= 500 and error.http_status < 600 or error.category == "subscription_degraded"):
+		_schedule_reconnect()
 
 
 func _schedule_reconnect() -> void:
