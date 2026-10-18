@@ -35,6 +35,7 @@ func _run() -> void:
 	await _test_retry_policy(transport)
 	await _test_concurrency(transport)
 	await _test_cancellation(transport)
+	await _test_cancellation_reuse(transport)
 	await _test_limits(transport)
 
 	transport.queue_free()
@@ -99,6 +100,42 @@ func _test_cancellation(transport: KickHttpTransport) -> void:
 	_check(ticket.is_cancelled and ticket.cancellation_reason == "fixture stop", "active request cancellation is typed and preserves a safe reason")
 	_check(ticket.response != null and ticket.response.error != null and ticket.response.error.category == "cancelled", "cancelled request returns a typed error")
 	_check(transport.active_count() == 0, "cancelled request releases its transport slot")
+
+
+func _test_cancellation_reuse(transport: KickHttpTransport) -> void:
+	var cancellation: KickCancellationToken = KickCancellationToken.new()
+	for index: int in 5:
+		var ticket: KickHttpTicket = transport.request(_url("/ok"), PackedStringArray(), HTTPClient.METHOD_GET, PackedByteArray(), cancellation)
+		await _drive_until_completed([ticket])
+		_check(ticket.response != null and ticket.response.is_success(), "reused token request %d succeeds" % index)
+		_check(cancellation.cancelled.get_connections().is_empty(), "completed request %d disconnects cancellation callback" % index)
+	var current: KickHttpTicket = transport.request(_url("/slow"), PackedStringArray(), HTTPClient.METHOD_GET, PackedByteArray(), cancellation)
+	cancellation.cancel("cancel current")
+	_check(current.is_completed and current.is_cancelled, "reused token cancels the current active ticket")
+	_check(cancellation.cancelled.get_connections().is_empty(), "active cancellation disconnects its callback")
+	transport.cancel_all("fixture cleanup")
+	var pre_cancelled: KickHttpTicket = transport.request(_url("/slow"), PackedStringArray(), HTTPClient.METHOD_GET, PackedByteArray(), cancellation)
+	_check(pre_cancelled.is_completed and pre_cancelled.is_cancelled, "already-cancelled token cancels a queued request")
+	_check(cancellation.cancelled.get_connections().is_empty(), "pre-cancelled request disconnects its callback")
+	var stopping: KickCancellationToken = KickCancellationToken.new()
+	var stopped: KickHttpTicket = transport.request(_url("/slow"), PackedStringArray(), HTTPClient.METHOD_GET, PackedByteArray(), stopping)
+	transport.cancel_all("fixture stop")
+	_check(stopped.is_completed and stopping.cancelled.get_connections().is_empty(), "cancel_all disconnects live token callbacks")
+	var retry_token: KickCancellationToken = KickCancellationToken.new()
+	var cancel_retry: Callable = func(_id: int, _attempt: int, _delay: int) -> void: retry_token.cancel("during backoff")
+	transport.request_retried.connect(cancel_retry)
+	var retrying: KickHttpTicket = transport.request(_url("/write-retry"), PackedStringArray(), HTTPClient.METHOD_GET, PackedByteArray(), retry_token)
+	await _drive_until_completed([retrying])
+	transport.request_retried.disconnect(cancel_retry)
+	_check(retrying.is_cancelled and retry_token.cancelled.get_connections().is_empty(), "backoff cancellation keeps then releases its callback")
+	var reentrant_token: KickCancellationToken = KickCancellationToken.new()
+	var followups: Array[KickHttpTicket] = []
+	var first: KickHttpTicket = transport.request(_url("/ok"), PackedStringArray(), HTTPClient.METHOD_GET, PackedByteArray(), reentrant_token)
+	first.completed.connect(func(_response: KickHttpResponse) -> void: followups.append(transport.request(_url("/ok"), PackedStringArray(), HTTPClient.METHOD_GET, PackedByteArray(), reentrant_token)))
+	await _drive_until_completed([first])
+	await _drive_until_completed(followups)
+	_check(followups.size() == 1 and followups[0].response.is_success(), "completion handlers can immediately reuse the token")
+	_check(reentrant_token.cancelled.get_connections().is_empty(), "reentrant requests leave no cancellation callbacks")
 
 
 func _test_limits(transport: KickHttpTransport) -> void:

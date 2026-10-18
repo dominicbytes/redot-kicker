@@ -61,6 +61,7 @@ func request(
 		"method": method,
 		"body": body,
 		"cancellation": cancellation,
+		"cancel_callback": Callable(),
 		"retry_safe": retry_safe or method in [HTTPClient.METHOD_GET, HTTPClient.METHOD_HEAD],
 		"attempt": 0,
 		"ready_at_msec": 0,
@@ -69,7 +70,8 @@ func request(
 	}
 	_pending.append(item)
 	if cancellation != null:
-		cancellation.cancelled.connect(_on_cancel_requested.bind(ticket.id), CONNECT_ONE_SHOT)
+		item.cancel_callback = _on_cancel_requested.bind(ticket.id)
+		cancellation.cancelled.connect(item.cancel_callback, CONNECT_ONE_SHOT)
 		if cancellation.is_cancelled():
 			_on_cancel_requested(cancellation.reason(), ticket.id)
 	_pump()
@@ -179,6 +181,7 @@ func _finish_or_retry(item: Dictionary, response: KickHttpResponse) -> void:
 		request_retried.emit(ticket.id, int(item.attempt) + 1, delay_msec)
 		set_process(true)
 	else:
+		_disconnect_cancellation(item)
 		ticket._complete(response)
 	_pump()
 
@@ -195,6 +198,7 @@ func _on_cancel_requested(reason: String, ticket_id: int) -> void:
 		var pending_ticket: KickHttpTicket = pending_item.ticket
 		if pending_ticket.id == ticket_id:
 			_pending.remove_at(index)
+			_disconnect_cancellation(pending_item)
 			_complete_cancelled(pending_ticket, reason, int(pending_item.attempt))
 			_pump()
 			return
@@ -206,8 +210,17 @@ func _on_cancel_requested(reason: String, ticket_id: int) -> void:
 	if is_instance_valid(http):
 		http.cancel_request()
 		http.queue_free()
+	_disconnect_cancellation(item)
 	_complete_cancelled(item.ticket, reason, int(item.attempt))
 	_pump()
+
+
+func _disconnect_cancellation(item: Dictionary) -> void:
+	var cancellation: KickCancellationToken = item.cancellation
+	var callback: Callable = item.cancel_callback
+	if cancellation != null and cancellation.cancelled.is_connected(callback):
+		cancellation.cancelled.disconnect(callback)
+	item.cancel_callback = Callable()
 
 
 func _complete_cancelled(ticket: KickHttpTicket, reason: String, attempt_count: int) -> void:
