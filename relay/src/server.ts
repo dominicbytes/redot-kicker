@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { AddressInfo } from "node:net";
+import { isIP, type AddressInfo } from "node:net";
 import { CAPABILITY_SCOPES, OPERATIONS, SUPPORTED_EVENTS, type OperationContract } from "./contracts.js";
 import type { RelayConfig } from "./config.js";
 import { validateRelayConfig } from "./config.js";
@@ -105,14 +105,14 @@ export class RelayService {
     let route = "unknown";
     let status = 500;
     try {
-      if (!this.limiter.allow(request.socket.remoteAddress ?? "unknown", 300, 60)) throw new HttpError(429, "rate_limited", "Relay request rate limit exceeded", true);
       const url = new URL(request.url ?? "/", "http://relay.invalid");
+      if (url.pathname !== "/v1/events/webhook" && !this.limiter.allow(this.rateLimitKey(request, url), 300, 60)) throw new HttpError(429, "rate_limited", "Relay request rate limit exceeded", true);
       if (url.pathname === "/v1/health" && request.method === "GET") {
         route = "health";
         status = this.health(response);
       } else if (url.pathname === "/v1/auth/requests" && request.method === "POST") {
         route = "auth.begin";
-        if (!this.limiter.allow(`auth:${request.socket.remoteAddress ?? "unknown"}`, 10, 60)) throw new HttpError(429, "rate_limited", "Authorization request rate limit exceeded", true);
+        if (!this.limiter.allow(`auth:${clientAddress(request, this.config.trustedProxyHops)}`, 10, 60)) throw new HttpError(429, "rate_limited", "Authorization request rate limit exceeded", true);
         status = await this.beginAuthorization(request, response);
       } else if (/^\/v1\/auth\/requests\/[A-Za-z0-9_-]+\/authorize$/.test(url.pathname) && request.method === "GET") {
         route = "auth.redirect";
@@ -153,6 +153,20 @@ export class RelayService {
     } finally {
       this.logger.info("request_complete", { route, status, duration_ms: Date.now() - started });
     }
+  }
+
+  private rateLimitKey(request: IncomingMessage, url: URL): string {
+    if (request.method === "POST" && (/^\/v1\/sessions\/(restore|rotate|revoke)$/.test(url.pathname) || url.pathname.startsWith("/v1/kick/actions/") || url.pathname === "/v1/events/tickets")) {
+      try { return `broker:${this.authenticate(request).brokerCredentialHash}`; }
+      catch { /* Invalid credentials share the unauthenticated IP bucket. */ }
+    }
+    if (request.method === "GET" && /^\/v1\/auth\/requests\/[A-Za-z0-9_-]+$/.test(url.pathname)) {
+      const id = url.pathname.split("/")[4];
+      const record = this.store.snapshot().authRequests.find((entry) => entry.id === id);
+      const commitment = proofCommitment(singleHeader(request, "x-redot-kicker-proof"));
+      if (record && commitment && secureEqual(commitment, record.proofHash)) return `poll:${record.id}`;
+    }
+    return `ip:${clientAddress(request, this.config.trustedProxyHops)}`;
   }
 
   private health(response: ServerResponse): number {
@@ -881,4 +895,13 @@ class FixedWindowLimiter {
     entry.count += 1;
     return entry.count <= maximum;
   }
+}
+
+function clientAddress(request: IncomingMessage, trustedProxyHops: number): string {
+  const remote = request.socket.remoteAddress ?? "unknown";
+  if (trustedProxyHops === 0) return remote;
+  const forwarded = singleHeader(request, "x-forwarded-for").split(",").map((value) => value.trim());
+  if (forwarded.length < trustedProxyHops || forwarded.some((value) => isIP(value) === 0)) return remote;
+  const address = forwarded[forwarded.length - trustedProxyHops]!;
+  return isIP(address) === 6 ? new URL(`http://[${address}]/`).hostname : address;
 }

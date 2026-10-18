@@ -110,6 +110,7 @@ export async function startMockKick(): Promise<MockKick> {
 
 export function testConfig(mock: MockKick): RelayConfig {
   return {
+    trustedProxyHops: 0,
     host: "127.0.0.1",
     port: 0,
     publicBaseUrl: "http://127.0.0.1:0",
